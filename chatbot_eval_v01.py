@@ -78,7 +78,7 @@ def name_based_retriever(docs = None, name = 'All', embeddings = OpenAIEmbedding
     return retriever, texts
 
 if __name__ == '__main__':
-    llm = ChatOpenAI(temperature = 0.0) # language model
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature = 0.0) # language model
     # llm = QianfanChatEndpoint(temperature = 0.0)
     
     embeddings = OpenAIEmbeddings()
@@ -99,4 +99,59 @@ if __name__ == '__main__':
     print(qa('What industry does Velvet Throat work at?')['result'])
     q = f'where does {name} work at?'
     print(q, qa(q)['result'])
+    
+    #%%
+    # Initializing feedback function
+    from trulens_eval.feedback.provider import OpenAI as fOpenAI
+    import numpy as np
+    
+    # Imports main tools:
+    from trulens_eval import TruChain, Feedback, Huggingface, Tru
+    from trulens_eval.schema import FeedbackResult
+    tru = Tru()
+    tru.reset_database()
+    
+    # Initialize provider class
+    provider = fOpenAI()
+    
+    # select context to be used in feedback. the location of context is app specific.
+    from trulens_eval import TruLlama
+    
+    context_selection = TruLlama.select_source_nodes().node.text
+    
+    from trulens_eval.feedback import Groundedness
+    grounded = Groundedness(groundedness_provider=provider)
+    # Define a groundedness feedback function
+    f_groundedness = (
+        Feedback(grounded.groundedness_measure_with_cot_reasons,
+                  name="Groundedness"
+                )
+        .on(context_selection)
+        .on_output()
+        .aggregate(grounded.grounded_statements_aggregator)
+        )
+    #     .aggregate(grounded.grounded_statements_aggregator)
+    # )
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
      
