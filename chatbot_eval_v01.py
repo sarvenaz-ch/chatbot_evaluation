@@ -42,6 +42,7 @@ def load_htmls():
         docs.extend(doc)
     return docs
 
+
 def get_names(docs = None):
     ''' get a list of all names'''
     if docs is None:
@@ -76,6 +77,7 @@ def name_based_retriever(docs = None, name = 'All', embeddings = OpenAIEmbedding
     )
     
     return retriever, texts
+
 
 if __name__ == '__main__':
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature = 0.0) # language model
@@ -114,41 +116,112 @@ if __name__ == '__main__':
     # Initialize provider class
     provider = fOpenAI()
     
-    # select context to be used in feedback. the location of context is app specific.
-    from trulens_eval import TruLlama
+    # # select context to be used in feedback. the location of context is app specific.
+    # from trulens_eval import TruLlama
     
-    context_selection = TruLlama.select_source_nodes().node.text
+    # context_selection = TruLlama.select_source_nodes().node.text
     
-    from trulens_eval.feedback import Groundedness
-    grounded = Groundedness(groundedness_provider=provider)
-    # Define a groundedness feedback function
-    f_groundedness = (
-        Feedback(grounded.groundedness_measure_with_cot_reasons,
-                  name="Groundedness"
-                )
-        .on(context_selection)
-        .on_output()
-        .aggregate(grounded.grounded_statements_aggregator)
-        )
+    # from trulens_eval.feedback import Groundedness
+    # grounded = Groundedness(groundedness_provider=provider)
+    # # Define a groundedness feedback function
+    # f_groundedness = (
+    #     Feedback(grounded.groundedness_measure_with_cot_reasons,
+    #               name="Groundedness"
+    #             )
+    #     .on(context_selection)
+    #     .on_output()
     #     .aggregate(grounded.grounded_statements_aggregator)
-    # )
+    #     )
+
+    qa_relevance = Feedback(provider.relevance).on_input_output()
+    f_context_relevance = (
+        Feedback(provider.relevance_with_cot_reasons,
+                 name = 'Q&A Relevance')
+        .on_input()
+        .on_output()
+    # .aggregate(np.mean)
+    )
+    tru_recorder = TruChain(qa,
+                            app_id='Chain1_ChatApplication',
+                            feedbacks=[
+                                # f_qa_relevance,
+                                f_context_relevance,
+                                # f_groundedness
+                                ])
+    
+    # %%
+    with tru_recorder as recording:
+        llm_response = qa(q)['result']
+
+    print(llm_response)
+    
+    # The record of the ap invocation can be retrieved from the `recording`:
+    rec = recording.get() # use .get if only one record
+    
+    records, feedback = tru.get_records_and_feedback(app_ids=["Chain1_ChatApplication"])
+    # %%
+    from langchain_core.runnables import RunnablePassthrough
+    from langchain import hub
+    from langchain_core.output_parsers.string import StrOutputParser
+    from langchain.prompts import ChatPromptTemplate
+
+    
+    template = """Answer the question based only on the following context:
+    {context}
+    
+    Question: {question}
+    """
+    prompt = ChatPromptTemplate.from_template(template)
+    model = ChatOpenAI()
+    
+    retrieval_chain = (
+        {"context": r, "question": RunnablePassthrough()}
+        | prompt
+        | model
+        | StrOutputParser()
+    )
+    
+    # print(retrieval_chain.invoke(f"where did {name} work?"))
     
     
+    # %%
+from langchain.chains import LLMChain
+from langchain.prompts.chat import HumanMessagePromptTemplate
+from langchain.prompts.chat import ChatPromptTemplate, PromptTemplate
+
+full_prompt = HumanMessagePromptTemplate(
+    prompt=PromptTemplate(
+        template=
+        "Provide a helpful response with relevant background information for the following: {prompt}",
+        input_variables=["prompt"],
+    )
+)
+
+chat_prompt_template = ChatPromptTemplate.from_messages([full_prompt])
+
+
+chain = LLMChain(llm=llm, prompt=chat_prompt_template, verbose=True)
+
+print(chain(q))
     
     
+# %%
+'''----------------------------------------------------------------
+                         RAGAS 
+---------------------------------------------------------------'''
+from ragas.metrics import faithfulness, answer_relevancy, context_relevancy
+from ragas.langchain import RagasEvaluatorChain # langchain chain wrapper to convert a ragas metric into a langchain
+
+# make eval chains
+eval_chains = {
+    m.name: RagasEvaluatorChain(metric=m) 
+    for m in [faithfulness, answer_relevancy, context_relevancy]
+}   
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+for name, eval_chain in eval_chains.items():
+    score_name = f"{name}_score"
+    print(f"{score_name}: {eval_chain({'query':q, 'source_documents':t, 'result':llm_response})[score_name]}")
     
     
     
