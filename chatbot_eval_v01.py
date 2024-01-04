@@ -212,10 +212,11 @@ print(chain(q))
 from ragas.metrics import faithfulness, answer_relevancy, context_relevancy
 from ragas.langchain import RagasEvaluatorChain # langchain chain wrapper to convert a ragas metric into a langchain
 
+eval_metrics_list = [faithfulness, answer_relevancy, context_relevancy]
 # make eval chains
 eval_chains = {
     m.name: RagasEvaluatorChain(metric=m) 
-    for m in [faithfulness, answer_relevancy, context_relevancy]
+    for m in eval_metrics_list
 }   
     
 
@@ -266,10 +267,14 @@ eval_answers = [qa(q)['result'] for q in eval_questions]
 # %%
 metric_tracker = {}
 for metric, eval_chain in eval_chains.items():
-    # score_name = f"{metric}_score"
     metric_name = f'{metric}_score'
     metric_tracker[metric_name] = []
     for ind, q in enumerate(eval_questions):
         metric_tracker[metric_name].append(eval_chain({'query':q, 'source_documents':t, 'result':eval_answers[ind]})[metric_name])
+    metric_tracker[f'{metric_name}_avg'] = np.mean(metric_tracker[metric_name]) # Calculating mean over each metric for an overall assesment
 
-    metric_tracker[f'{metric_name}_avg'] = np.mean(metric_tracker[metric_name])
+# %%
+# Plottingt the avg values
+
+metric_avg = {k:metric_tracker[k] for k in [metric.name + '_score_avg' for metric in eval_metrics_list]}
+plot_metrics_with_values(metric_avg, title = 'Avg RAG Metrics')
