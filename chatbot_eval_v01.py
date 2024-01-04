@@ -223,8 +223,53 @@ for name, eval_chain in eval_chains.items():
     score_name = f"{name}_score"
     print(f"{score_name}: {eval_chain({'query':q, 'source_documents':t, 'result':llm_response})[score_name]}")
     
+# %%
+# Visualizing the metrics for a set of questions
+
+import matplotlib.pyplot as plt
+def plot_metrics_with_values(metrics_dict, title='RAG Metrics'):
+    """
+    Plots a bar chart for metrics contained in a dictionary and annotates the values on the bars.
+    Args:
+    metrics_dict (dict): A dictionary with metric names as keys and values as metric scores.
+    title (str): The title of the plot.
+    """
+    names = list(metrics_dict.keys())
+    values = list(metrics_dict.values())
+    plt.figure(figsize=(10, 6))
+    bars = plt.barh(names, values, color='skyblue')
+    # Adding the values on top of the bars
+    for bar in bars:
+        width = bar.get_width()
+        plt.text(width + 0.01,  # x-position
+                 bar.get_y() + bar.get_height() / 2,  # y-position
+                 f'{width:.4f}',  # value
+                 va='center')
+    plt.xlabel('Score')
+    plt.title(title)
+    plt.xlim(0, 1)  # Setting the x-axis limit to be from 0 to 1
+    plt.show()
     
-    
-    
-    
-     
+plot_metrics_with_values({'faithfulness_score': 1.0,
+                          'answer_relevancy_score': 0.9468557283238227,
+                          'context_relevancy_score': 0.025}, "Base Retriever ragas Metrics")
+
+# %%
+# Generating a set of sample questions and answers to test score aggregation
+eval_questions = [
+    'Where does Jerry work?',
+    'What industry or industries is Jerry involved in?',
+    'Is Jerry a charitable person?',
+    'Who are Jerrys family memebers?',
+    ]
+eval_answers = [qa(q)['result'] for q in eval_questions]
+# %%
+metric_tracker = {}
+for metric, eval_chain in eval_chains.items():
+    # score_name = f"{metric}_score"
+    metric_name = f'{metric}_score'
+    metric_tracker[metric_name] = []
+    for ind, q in enumerate(eval_questions):
+        metric_tracker[metric_name].append(eval_chain({'query':q, 'source_documents':t, 'result':eval_answers[ind]})[metric_name])
+
+    metric_tracker[f'{metric_name}_avg'] = np.mean(metric_tracker[metric_name])
